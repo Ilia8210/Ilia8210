@@ -1,0 +1,8 @@
+.env
+*.session
+*.session-journal
+ux_report_*.pdf
+logs/
+__pycache__/
+*.pyc
+fonts/
