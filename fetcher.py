@@ -1,80 +1,60 @@
-import os
-import base64
+import requests
+from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
-from io import BytesIO
 
-from telethon import TelegramClient
-from telethon.sessions import StringSession
-from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
-from PIL import Image
-
-MAX_MESSAGES = 300
-MAX_IMAGES = 10
-IMAGE_MAX_PX = 1024
+MAX_PAGES = 15
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+}
 
 
-def _is_image(msg) -> bool:
-    if isinstance(msg.media, MessageMediaPhoto):
-        return True
-    if isinstance(msg.media, MessageMediaDocument):
-        mime = getattr(msg.media.document, "mime_type", "")
-        return mime.startswith("image/")
-    return False
-
-
-def _compress_image(raw: bytes) -> tuple[bytes, str]:
-    img = Image.open(BytesIO(raw))
-    if img.mode in ("RGBA", "P"):
-        img = img.convert("RGB")
-    if max(img.size) > IMAGE_MAX_PX:
-        ratio = IMAGE_MAX_PX / max(img.size)
-        img = img.resize(
-            (int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS
-        )
-    buf = BytesIO()
-    img.save(buf, format="JPEG", quality=82)
-    return buf.getvalue(), "image/jpeg"
-
-
-async def fetch_channel_data(channel: str, hours: int = 24) -> dict:
-    api_id = int(os.environ["TELEGRAM_API_ID"])
-    api_hash = os.environ["TELEGRAM_API_HASH"]
+def fetch_channel_data(channel: str, hours: int = 24) -> dict:
+    channel = channel.lstrip("@")
+    base_url = f"https://t.me/s/{channel}"
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
 
     texts = []
-    images = []
+    before_id = None
+    done = False
 
-    session = StringSession(os.environ["TELEGRAM_SESSION"])
-    client = TelegramClient(session, api_id, api_hash)
-    async with client:
-        entity = await client.get_entity(channel)
+    for _ in range(MAX_PAGES):
+        params = {"before": before_id} if before_id else {}
+        resp = requests.get(base_url, params=params, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
 
-        async for msg in client.iter_messages(entity, limit=MAX_MESSAGES):
-            msg_date = msg.date
-            if msg_date.tzinfo is None:
-                msg_date = msg_date.replace(tzinfo=timezone.utc)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        msg_divs = soup.select(".tgme_widget_message")
+
+        if not msg_divs:
+            break
+
+        for msg in reversed(msg_divs):
+            time_el = msg.select_one("time[datetime]")
+            if not time_el:
+                continue
+
+            msg_date = datetime.fromisoformat(
+                time_el["datetime"].replace("Z", "+00:00")
+            )
+
             if msg_date < since:
+                done = True
                 break
 
-            if msg.text and msg.text.strip():
-                texts.append(
-                    {"id": msg.id, "text": msg.text.strip(), "date": msg_date.isoformat()}
-                )
+            text_el = msg.select_one(".tgme_widget_message_text")
+            if text_el:
+                text = text_el.get_text(separator=" ").strip()
+                if text:
+                    texts.append({"text": text, "date": msg_date.isoformat()})
 
-            if _is_image(msg) and len(images) < MAX_IMAGES:
-                try:
-                    buf = BytesIO()
-                    await client.download_media(msg, file=buf)
-                    raw, mime = _compress_image(buf.getvalue())
-                    images.append(
-                        {
-                            "message_id": msg.id,
-                            "data": base64.b64encode(raw).decode(),
-                            "media_type": mime,
-                            "date": msg_date.isoformat(),
-                        }
-                    )
-                except Exception:
-                    pass
+        if done:
+            break
 
-    return {"texts": texts, "images": images}
+        oldest = msg_divs[0]
+        post = oldest.get("data-post", "")
+        if "/" in post:
+            before_id = post.split("/")[-1]
+        else:
+            break
+
+    return {"texts": texts, "images": []}

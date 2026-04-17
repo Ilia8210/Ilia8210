@@ -1,4 +1,3 @@
-import asyncio
 import os
 import sys
 from datetime import datetime
@@ -10,7 +9,6 @@ load_dotenv()
 from fetcher import fetch_channel_data
 from analyzer import analyze_feedback
 from report import generate_report
-from sender import send_pdf
 
 
 def log(msg: str):
@@ -18,39 +16,32 @@ def log(msg: str):
 
 
 def main():
-    channel = os.environ.get("TELEGRAM_CHANNEL")
-    if not channel:
-        print("Error: TELEGRAM_CHANNEL not set in .env")
-        sys.exit(1)
+    channel = os.environ.get("TELEGRAM_CHANNEL", "@catapult_community")
 
     log(f"Fetching messages from {channel}...")
-    data = asyncio.run(fetch_channel_data(channel))
+    data = fetch_channel_data(channel)
 
-    n_texts = len(data["texts"])
-    n_images = len(data["images"])
-    log(f"Found {n_texts} messages, {n_images} images")
+    n = len(data["texts"])
+    log(f"Found {n} messages")
 
-    if n_texts == 0 and n_images == 0:
-        log("No new messages in the last 24 hours. Skipping.")
-        return
+    if n == 0:
+        log("No messages found. Check that the channel username is correct and public.")
+        sys.exit(1)
 
-    log("Analyzing feedback with Claude...")
+    log("Analyzing with Claude...")
     analysis = analyze_feedback(data)
 
     if "error" in analysis:
-        log(f"Analysis error: {analysis['error']}")
+        log(f"Error: {analysis['error']}")
         sys.exit(1)
 
     date_str = datetime.now().strftime("%Y-%m-%d")
     pdf_path = f"ux_report_{date_str}.pdf"
 
-    log("Generating PDF report...")
+    log("Generating PDF...")
     generate_report(analysis, pdf_path)
 
-    log("Sending report to Telegram...")
-    send_pdf(pdf_path)
-
-    log(f"Done. Report sent: {pdf_path}")
+    log(f"Done! Report saved: {pdf_path}")
 
 
 if __name__ == "__main__":
