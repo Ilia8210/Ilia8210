@@ -4,10 +4,10 @@ from datetime import datetime, timedelta, timezone
 from io import BytesIO
 
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
 from PIL import Image
 
-SESSION_FILE = "telegram_session"
 MAX_MESSAGES = 300
 MAX_IMAGES = 10
 IMAGE_MAX_PX = 1024
@@ -44,7 +44,8 @@ async def fetch_channel_data(channel: str, hours: int = 24) -> dict:
     texts = []
     images = []
 
-    client = TelegramClient(SESSION_FILE, api_id, api_hash)
+    session = StringSession(os.environ["TELEGRAM_SESSION"])
+    client = TelegramClient(session, api_id, api_hash)
     async with client:
         entity = await client.get_entity(channel)
 

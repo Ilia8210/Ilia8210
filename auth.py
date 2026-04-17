@@ -1,33 +1,30 @@
 """
-Run this ONCE to authenticate Telethon on the server.
-After this, main.py can run unattended.
+Run this ONCE in Google Colab to get your Telegram session string.
 
-Usage: python auth.py
+In Colab:
+1. !pip install telethon
+2. Copy-paste this entire file and run it
+3. Enter your phone number and the code from Telegram
+4. Copy the printed session string
+5. Add it as TELEGRAM_SESSION in Railway Variables
 """
 import asyncio
-import os
-
-from dotenv import load_dotenv
 from telethon import TelegramClient
+from telethon.sessions import StringSession
 
-load_dotenv()
+API_ID = int(input("Enter API_ID: "))
+API_HASH = input("Enter API_HASH: ")
+PHONE = input("Enter phone (e.g. +79001234567): ")
 
 
-async def authenticate():
-    api_id = int(os.environ["TELEGRAM_API_ID"])
-    api_hash = os.environ["TELEGRAM_API_HASH"]
-    phone = os.environ["TELEGRAM_PHONE"]
-
-    client = TelegramClient("telegram_session", api_id, api_hash)
-    await client.start(phone=phone)
-
+async def get_session():
+    client = TelegramClient(StringSession(), API_ID, API_HASH)
+    await client.start(phone=PHONE)
     me = await client.get_me()
-    print(f"Authenticated as: {me.first_name} (@{me.username})")
-    print(f"Your Telegram user ID (use as YOUR_CHAT_ID): {me.id}")
-    print("Session saved to telegram_session.session — keep this file safe.")
-
+    print(f"\nAuthenticated as: {me.first_name} (@{me.username})")
+    print(f"\nYour TELEGRAM_SESSION string (copy this to Railway Variables):")
+    print(client.session.save())
     await client.disconnect()
 
 
-if __name__ == "__main__":
-    asyncio.run(authenticate())
+asyncio.run(get_session())
