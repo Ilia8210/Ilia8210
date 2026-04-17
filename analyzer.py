@@ -1,9 +1,10 @@
 import os
 import json
+import base64
+from io import BytesIO
 
-from anthropic import Anthropic
-
-client = Anthropic()
+import google.generativeai as genai
+from PIL import Image
 
 SYSTEM_PROMPT = """You are a senior UX researcher. Analyze user feedback from a Telegram channel and produce a structured usability research report.
 
@@ -17,7 +18,7 @@ Focus on:
 Be objective and data-driven. Prioritize by frequency and severity."""
 
 
-def _build_content(data: dict) -> list:
+def _build_parts(data: dict) -> list:
     texts = data["texts"]
     images = data["images"]
 
@@ -25,10 +26,9 @@ def _build_content(data: dict) -> list:
         f"[{m['date'][:10]}] {m['text']}" for m in texts
     )
 
-    content = [
-        {
-            "type": "text",
-            "text": f"""Analyze these {len(texts)} user messages and {len(images)} screenshots from the past 24 hours.
+    prompt = f"""{SYSTEM_PROMPT}
+
+Analyze these {len(texts)} user messages and {len(images)} screenshots from the past 24 hours.
 
 MESSAGES:
 {messages_block}
@@ -55,47 +55,31 @@ Return ONLY valid JSON with this exact structure:
   "screenshots_insights": "Insights from screenshots, or empty string if none"
 }}
 
-Sort issues by frequency descending.""",
-        }
-    ]
+Sort issues by frequency descending."""
+
+    parts = [prompt]
 
     for img in images:
-        content.append(
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": img["media_type"],
-                    "data": img["data"],
-                },
-            }
-        )
+        raw = base64.b64decode(img["data"])
+        parts.append(Image.open(BytesIO(raw)))
 
     if images:
-        content.append(
-            {
-                "type": "text",
-                "text": f"The {len(images)} screenshots above are from users. Analyze visible UI issues and include insights in 'screenshots_insights'.",
-            }
-        )
+        parts.append(f"The {len(images)} images above are screenshots from users. Analyze visible UI issues and include insights in 'screenshots_insights'.")
 
-    return content
+    return parts
 
 
 def analyze_feedback(data: dict) -> dict:
     if not data["texts"] and not data["images"]:
         return {"error": "No messages found in the last 24 hours"}
 
-    content = _build_content(data)
+    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
-    response = client.messages.create(
-        model="claude-opus-4-7",
-        max_tokens=4096,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": content}],
-    )
+    parts = _build_parts(data)
+    response = model.generate_content(parts)
 
-    raw = response.content[0].text
+    raw = response.text
     start = raw.find("{")
     end = raw.rfind("}") + 1
     return json.loads(raw[start:end])
