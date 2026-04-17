@@ -49,3 +49,35 @@
 
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
 - **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
+
+## UX Research Standards (from /ux-research skill)
+
+When analyzing user feedback, always:
+- Triangulate: behavioral data + attitudinal data + visual (screenshots)
+- Map every issue to a UX law (Fitts', Hick's, Jakob's, Miller's, Nielsen's heuristics)
+- Rank by frequency × severity, not by recency
+- Recommendations must be specific enough to implement without follow-up questions
+- A finding from 1 source = hypothesis. From 3 sources = finding.
+
+## Design & Report Standards (from /design-report skill)
+
+When generating PDFs or visual output:
+- Choose a bold aesthetic direction and commit — no safe middle ground
+- Visual hierarchy must guide the eye: Title → Section → Stat → Detail
+- Severity must be scannable without reading — use color + size contrast
+- White space is not waste — it creates focus
+- Never generic: no Inter font + purple gradient + card grid defaults
+
+## Research Methodology (from /deep-research skill)
+
+- Decompose before researching — break into 3–5 sub-questions first
+- Parallel evidence gathering across independent sources
+- Synthesis ≠ summary: identify patterns, quantify, flag conflicts
+- Lead with the most important finding, not the most recent
+
+## Available Commands
+
+- `/ux-research` — Full UX research methodology with quality gates
+- `/design-report` — Design principles for PDF/visual output
+- `/deep-research` — Multi-source research protocol
+- `/verify` — Verification gate before claiming completion
